@@ -1,6 +1,3 @@
-
-import json
-from json import dumps, loads
 import numpy as np
 import pandas as pd
 from typing import Dict, List
@@ -103,7 +100,7 @@ def predict_save_req(inputs: List[book.Input]) -> Dict[str, List[Dict[str, float
 
 @app.get("/get_requests")
 def get_requests():
-    sql = "SELECT * FROM requests ORDER BY time DESC LIMIT 3"
+    sql = "SELECT * FROM requests ORDER BY time DESC LIMIT 10"
     cursor.execute(sql)
     records = cursor.fetchall()
     db_connection.commit()
