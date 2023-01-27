@@ -4,7 +4,7 @@ from json import dumps, loads
 import numpy as np
 import pandas as pd
 from typing import Dict, List
-from datetime import datetime
+import datetime
 
 from fastapi import FastAPI
 from numpy.typing import NDArray
@@ -50,13 +50,6 @@ def create_requests():
     return {"'requests' created"}
 
 
-@app.post("/delete_table")
-def delete_table():
-    sql = "DROP TABLE IF EXISTS requests"
-    cursor.execute(sql)
-    return {"deleted"}
-
-
 def insert_df_into_table(dataf):
     cursor = db_connection.cursor()
     lst = dataf.values.tolist()
@@ -65,16 +58,6 @@ def insert_df_into_table(dataf):
     db_connection.commit()
     print("DF inserted")
     cursor.close()
-
-
-# Leaving this in in case I'll ever want to insert a book in the 'books' table
-# @app.post("/insert_book")
-# def insert_or_update(title, about, genre):
-#     cursor = db_connection.cursor()
-#     sql = "INSERT INTO books (title, about, genre, prediction) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE prediction = VALUES(prediction)"
-#     cursor.execute(sql, (title, about, genre, prediction))
-#     db_connection.commit()
-#     return {cursor.rowcount, "inserted / updated"}
 
 
 @app.get("/health")
@@ -96,3 +79,33 @@ def predict_books(inputs: List[book.Input]) -> Dict[str, List[Dict[str, float]]]
     outputs: NDArray[np.float32] = book_model.predict(parsed_input["text"].values)
     return {"outputs": [{"class": i} for i in outputs.tolist()]}
 
+
+@app.post("/predict_save_req")
+def predict_save_req(inputs: List[book.Input]) -> Dict[str, List[Dict[str, float]]]:
+    parsed_input = pd.DataFrame([i.dict() for i in inputs])
+    outputs: NDArray[np.float32] = book_model.predict(parsed_input["text"].values)
+    
+    inputs_str=', '.join(str(x) for x in inputs)
+
+    outputs_lst=outputs.tolist()
+    outputs_str=', '.join(str(x) for x in outputs_lst)
+
+    sql = "INSERT INTO requests (path, input, prediction, time) VALUES (%s, %s, %s, %s)"
+    path = "/predict"
+    input = inputs_str
+    prediction = outputs_str
+    time = datetime.datetime.now()
+    cursor.execute(sql, (path, input, prediction, time))
+    db_connection.commit()
+
+    return {"predictions": [{"genre": i} for i in outputs.tolist()]}
+
+
+@app.get("/get_requests")
+def get_requests():
+    sql = "SELECT * FROM requests ORDER BY time DESC LIMIT 3"
+    cursor.execute(sql)
+    records = cursor.fetchall()
+    db_connection.commit()
+    cursor.close()
+    return {"requests": records}
